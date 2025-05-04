@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+jobs:
+  build-llvm:
+    name: Build LLVM
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Build
+        run: |
+          sudo rm -rf /opt/clang-cross
+          ./scripts/make llvm
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-cross.tar.xz
+          path: clang-cross.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-targets:
+    name: Build Targets
+    runs-on: ubuntu-22.04
+    needs:
+      - build-llvm
+    strategy:
+      fail-fast: true
+      matrix:
+        target:
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - arm-unknown-linux-gnueabi
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - armv7-unknown-linux-gnueabi
+          - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-musleabi
+          - armv7-unknown-linux-musleabihf
+          - i586-unknown-linux-gnu
+          - i586-unknown-linux-musl
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          - loongarch64-unknown-linux-gnu
+          - loongarch64-unknown-linux-musl
+          - mips64el-unknown-linux-gnu
+          - mips64el-unknown-linux-musl
+          - mips64-unknown-linux-gnu
+          - mips64-unknown-linux-musl
+          - mipsel-unknown-linux-gnu
+          - mipsel-unknown-linux-gnusf
+          - mipsel-unknown-linux-musl
+          - mipsel-unknown-linux-muslsf
+          - mips-unknown-linux-gnu
+          - mips-unknown-linux-gnusf
+          - mips-unknown-linux-musl
+          - mips-unknown-linux-muslsf
+          - powerpc64-unknown-linux-gnu
+          - powerpc64-unknown-linux-musl
+          - powerpc-unknown-linux-gnu
+          - powerpc-unknown-linux-musl
+          - riscv32-unknown-linux-gnu
+          - riscv32-unknown-linux-musl
+          - riscv64-unknown-linux-gnu
+          - riscv64-unknown-linux-musl
+          - s390x-ibm-linux-gnu
+          - s390x-ibm-linux-musl
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Download
+        uses: actions/download-artifact@v4
+        with:
+          name: clang-cross.tar.xz
+      - name: Build
+        run: |
+          sudo rm -rf /opt/clang-cross
+          ./scripts/make ${{ matrix.target }}
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}.tar.xz
+          path: ${{ matrix.target }}.tar.xz
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}.tar.xz.sha256
+          path: ${{ matrix.target }}.tar.xz.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release
+    runs-on: ubuntu-22.04
+    needs:
+      - build-targets
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          pattern: "*-*-*.tar.*"
+          merge-multiple: true
+      - name: Generate checksums
+        run: |
+          echo "| Filename | Sha256sum |" > RELEASE.md
+          echo "| -------- | --------- |" >> RELEASE.md
+          for i in release/*.sha256; do
+            echo "| $(basename $i .sha256) | $(cat $i) |" >> RELEASE.md
+          done
+      - name: Upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in release/*.tar.xz; do
+            gh release upload ${{ github.event.release.tag_name }} $i $i.sha256
+          done
+          gh release edit ${{ github.event.release.tag_name }} -F RELEASE.md
