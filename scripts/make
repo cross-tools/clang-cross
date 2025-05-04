@@ -1,0 +1,115 @@
+#!/bin/bash
+
+set -e
+
+CT_URL="https://github.com/cross-tools"
+CT_VER=20250520
+LLVM_TARGETS="AArch64;ARM;LoongArch;Mips;PowerPC;RISCV;SystemZ;X86"
+
+install_packages() {
+	sudo apt-get update
+	sudo apt-get install -y --no-install-recommends \
+		build-essential \
+		ca-certificates \
+		cmake \
+		git \
+		libz-dev \
+		ninja-build \
+		python3 \
+		wget \
+		xz-utils
+}
+
+build_llvm() {
+	sudo mkdir -p /opt
+	sudo chmod 0777 /opt
+	mkdir -p build-llvm
+	pushd build-llvm
+	cmake -G Ninja -S ../llvm/llvm \
+		-DLLVM_ENABLE_PROJECTS="clang;lld" \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=/opt/clang-cross \
+		-DCLANG_DEFAULT_LINKER=lld \
+		-DCLANG_DEFAULT_PIE_ON_LINUX=ON \
+		-DCLANG_LINK_CLANG_DYLIB=ON \
+		-DENABLE_LINKER_BUILD_ID=ON \
+		-DLLVM_ENABLE_RTTI=ON \
+		-DLLVM_ENABLE_ZLIB=ON \
+		-DLLVM_LINK_LLVM_DYLIB=ON \
+		-DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS}" \
+		-DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
+	ninja install/strip
+	popd
+	rm -rf build-llvm
+	sudo mv /opt/clang-cross .
+	sudo chown -R root:root clang-cross
+	sudo tar -cJvf clang-cross.tar.xz clang-cross
+}
+
+build_target() {
+	TARGET=${1}
+	. targets/${TARGET}/config
+	sudo tar -xf clang-cross.tar.xz -C /opt
+	sudo chown -R $(id -u):$(id -g) /opt/clang-cross
+	case ${TARGET} in
+		*gnu*)
+			URL="${CT_URL}/gnu-cross/releases/download/${CT_VER}/${TARGET}.tar.xz"
+			;;
+		*musl*)
+			URL="${CT_URL}/musl-cross/releases/download/${CT_VER}/${TARGET}.tar.xz"
+			;;
+	esac
+	for n in {0..9}; do
+		if wget -O - "${URL}" | tar xJ; then
+			break
+		fi
+		sleep 5
+	done
+	find ${TARGET} -exec chmod +w {} \;
+	cp -a ${TARGET}/include /opt/clang-cross/
+	cp -a ${TARGET}/lib/gcc /opt/clang-cross/lib/
+	cp -a ${TARGET}/${TARGET} /opt/clang-cross/
+	rm -rf /opt/clang-cross/lib/gcc/${TARGET}/*/{install-tools,plugin}
+	rm -rf /opt/clang-cross/${TARGET}/{bin,debug-root,lib}
+	for n in clang:clang clang++:clang++ cpp:clang-cpp; do
+		cat > /opt/clang-cross/bin/${TARGET}-${n%%:*} <<-EOF
+			#!/bin/sh
+
+			TARGET=${TARGET}
+			BINDIR=\$(dirname "\$0")
+
+			exec "\${BINDIR}/${n##*:}" --target=\${TARGET} --sysroot=\${BINDIR}/../\${TARGET}/sysroot ${CLANG_ARGS} "\$@"
+		EOF
+		chmod +x /opt/clang-cross/bin/${TARGET}-${n%%:*}
+	done
+	ln -sf ${TARGET}-clang /opt/clang-cross/bin/${TARGET}-cc
+	ln -sf ${TARGET}-clang++ /opt/clang-cross/bin/${TARGET}-c++
+	for n in ar:ar c++filt:cxxfilt nm:nm objcopy:objcopy objdump:objdump ranlib:ranlib size:size strings:strings strip:strip; do
+		cat > /opt/clang-cross/bin/${TARGET}-${n%%:*} <<-EOF
+			#!/bin/sh
+
+			BINDIR=\$(dirname "\$0")
+
+			exec "\${BINDIR}/llvm-${n##*:}" "\$@"
+		EOF
+		chmod +x /opt/clang-cross/bin/${TARGET}-${n%%:*}
+	done
+	find /opt/clang-cross -exec chmod -w {} \;
+	rm -rf ${TARGET}
+	sudo mv /opt/clang-cross ${TARGET}
+	sudo chown -R root:root ${TARGET}
+	sudo tar -cJvf ${TARGET}.tar.xz ${TARGET}
+	sudo sha256sum ${TARGET}.tar.xz | awk '{ print $1 }' > ${TARGET}.tar.xz.sha256
+}
+
+install_packages
+
+if [ ! -e clang-cross.tar.xz ]; then
+	build_llvm
+fi
+
+if [ "${1}" != "llvm" ]; then
+	build_target ${1}
+fi
+
+# vim: set ts=4 sw=4 noexpandtab:
