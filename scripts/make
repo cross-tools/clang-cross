@@ -3,7 +3,7 @@
 set -e
 
 CT_URL="https://github.com/cross-tools"
-CT_VER=20250804
+CT_VER=20250815
 LLVM_TARGETS="AArch64;ARM;LoongArch;Mips;PowerPC;RISCV;SystemZ;X86"
 
 install_packages() {
