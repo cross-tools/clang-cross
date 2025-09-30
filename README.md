@@ -34,8 +34,12 @@ This is a simple, lightweight project for making cross-compilation toolchain wit
 | mips-unknown-linux-gnusf       | 5.4.296 | 21.1.2 | 2.42   |
 | mips-unknown-linux-musl        | 5.4.296 | 21.1.2 | 1.2.5  |
 | mips-unknown-linux-muslsf      | 5.4.296 | 21.1.2 | 1.2.5  |
+| powerpc64le-unknown-linux-gnu  | 5.4.296 | 21.1.2 | 2.42   |
+| powerpc64le-unknown-linux-musl | 5.4.296 | 21.1.2 | 1.2.5  |
 | powerpc64-unknown-linux-gnu    | 5.4.296 | 21.1.2 | 2.42   |
 | powerpc64-unknown-linux-musl   | 5.4.296 | 21.1.2 | 1.2.5  |
+| powerpcle-unknown-linux-gnu    | 5.4.296 | 21.1.2 | 2.42   |
+| powerpcle-unknown-linux-musl   | 5.4.296 | 21.1.2 | 1.2.5  |
 | powerpc-unknown-linux-gnu      | 5.4.296 | 21.1.2 | 2.42   |
 | powerpc-unknown-linux-musl     | 5.4.296 | 21.1.2 | 1.2.5  |
 | riscv32-unknown-linux-gnu      | 5.4.296 | 21.1.2 | 2.42   |
