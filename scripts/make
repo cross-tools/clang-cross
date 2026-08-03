@@ -4,6 +4,7 @@ set -e
 
 CT_URL="https://github.com/cross-tools"
 CT_VER=20260430
+LIBXML2_VER=v2.15.3
 LLVM_TARGETS="AArch64;ARM;LoongArch;Mips;PowerPC;RISCV;SystemZ;X86"
 
 install_packages() {
@@ -15,16 +16,32 @@ install_packages() {
 		git \
 		libz-dev \
 		ninja-build \
-		python3 \
 		wget \
 		xz-utils
+}
+
+build_libxml2() {
+	ROOT=$PWD
+	git clone https://github.com/GNOME/libxml2.git libxml2-src
+	pushd libxml2-src
+	git checkout ${LIBXML2_VER}
+	./autogen.sh --prefix=${ROOT}/usr \
+		--enable-static --enable-shared \
+		--without-python --without-icu \
+		--with-zlib --with-lzma \
+		CFLAGS="-fPIC -O2"
+	make -j$(nproc)
+	make install
+	popd
 }
 
 build_llvm() {
 	sudo mkdir -p /opt
 	sudo chmod 0777 /opt
+	build_libxml2
 	mkdir -p build-llvm
 	pushd build-llvm
+	export PKG_CONFIG_PATH="$PWD/../usr/lib/pkgconfig"
 	cmake -G Ninja -S ../llvm/llvm \
 		-DLLVM_ENABLE_PROJECTS="clang;lld" \
 		-DCMAKE_BUILD_TYPE=Release \
@@ -37,7 +54,10 @@ build_llvm() {
 		-DLLVM_ENABLE_ZLIB=ON \
 		-DLLVM_LINK_LLVM_DYLIB=ON \
 		-DLLVM_TARGETS_TO_BUILD="${LLVM_TARGETS}" \
-		-DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
+		-DLLVM_INSTALL_TOOLCHAIN_ONLY=ON \
+		-DLLVM_USE_STATIC_LIBXML2=ON \
+		-DLIBXML2_INCLUDE_DIR="$PWD/../usr/include/libxml2" \
+		-DLIBXML2_STATIC_LIBRARY="$PWD/../usr/lib/libxml2.a"
 	ninja install/strip
 	popd
 	rm -rf build-llvm
