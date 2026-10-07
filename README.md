@@ -20,6 +20,7 @@ This is a simple, lightweight project for making cross-compilation toolchain wit
 | i586-unknown-linux-musl        | 5.4.296 | 23.1.3 | 1.2.6  |
 | i686-unknown-linux-gnu         | 5.4.296 | 23.1.3 | 2.44   |
 | i686-unknown-linux-musl        | 5.4.296 | 23.1.3 | 1.2.6  |
+| loongarch32-unknown-linux-gnu  | 7.0.12  | 23.1.3 | 2.44   |
 | loongarch64-unknown-linux-gnu  | 5.19.16 | 23.1.3 | 2.44   |
 | loongarch64-unknown-linux-musl | 5.19.16 | 23.1.3 | 1.2.6  |
 | mips64el-unknown-linux-gnu     | 5.4.296 | 23.1.3 | 2.44   |
